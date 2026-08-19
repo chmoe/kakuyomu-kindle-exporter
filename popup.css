@@ -1,0 +1,223 @@
+:root {
+  color-scheme: light;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #172026;
+  background: #f7f8f6;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  width: 360px;
+  min-height: 420px;
+  margin: 0;
+  background: #f7f8f6;
+}
+
+.app {
+  display: flex;
+  min-height: 420px;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px;
+}
+
+.header {
+  padding-bottom: 10px;
+  border-bottom: 1px solid #d8ded4;
+}
+
+h1,
+h2,
+p {
+  margin: 0;
+}
+
+h1 {
+  font-size: 19px;
+  font-weight: 750;
+}
+
+.header p {
+  margin-top: 6px;
+  color: #657168;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.work {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.work h2 {
+  color: #0f1b21;
+  font-size: 17px;
+  line-height: 1.35;
+}
+
+.work p {
+  color: #4d5b54;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+#workDescription {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+}
+
+.stats {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.stats span {
+  border: 1px solid #cfdbd1;
+  border-radius: 6px;
+  padding: 4px 8px;
+  background: #fff;
+  color: #344139;
+  font-size: 12px;
+}
+
+.controls {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: auto;
+}
+
+.fieldGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.fieldGroup legend {
+  padding: 0;
+  color: #2d3932;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.segmented {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  overflow: hidden;
+  min-height: 36px;
+  border: 1px solid #cfdbd1;
+  border-radius: 7px;
+  background: #fff;
+}
+
+.segmented label {
+  position: relative;
+  display: grid;
+  place-items: center;
+  color: #4d5b54;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.segmented label + label {
+  border-left: 1px solid #cfdbd1;
+}
+
+.segmented input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.segmented input:checked + span {
+  background: #1f6f5a;
+  color: #fff;
+}
+
+.segmented span {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+}
+
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #2d3932;
+  font-size: 13px;
+}
+
+.toggle input {
+  width: 16px;
+  height: 16px;
+  accent-color: #24745b;
+}
+
+button {
+  width: 100%;
+  min-height: 42px;
+  border: 0;
+  border-radius: 7px;
+  background: #1f6f5a;
+  color: #fff;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+button:disabled {
+  background: #a9b6af;
+  cursor: not-allowed;
+}
+
+.progress {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.progressText {
+  display: flex;
+  justify-content: space-between;
+  color: #4d5b54;
+  font-size: 12px;
+}
+
+progress {
+  width: 100%;
+  height: 12px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 999px;
+  background: #dfe6df;
+}
+
+progress::-webkit-progress-bar {
+  border-radius: 999px;
+  background: #dfe6df;
+}
+
+progress::-webkit-progress-value {
+  border-radius: 999px;
+  background: #24745b;
+}
+
+.message {
+  min-height: 18px;
+  color: #8a3e22;
+  font-size: 12px;
+  line-height: 1.45;
+}

@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Kakuyomu Kindle Exporter</title>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <main class="app">
+      <header class="header">
+        <div>
+          <h1>Kakuyomu Kindle</h1>
+          <p id="pageStatus">正在读取当前页面...</p>
+        </div>
+      </header>
+
+      <section class="work" id="workPanel" hidden>
+        <h2 id="workTitle"></h2>
+        <p id="workAuthor"></p>
+        <p id="workDescription"></p>
+        <div class="stats">
+          <span id="episodeCount">0 章</span>
+          <span>EPUB</span>
+        </div>
+      </section>
+
+      <section class="controls">
+        <fieldset class="fieldGroup">
+          <legend>排版方式</legend>
+          <div class="segmented">
+            <label>
+              <input type="radio" name="writingMode" value="horizontal" checked>
+              <span>横向</span>
+            </label>
+            <label>
+              <input type="radio" name="writingMode" value="vertical">
+              <span>竖向</span>
+            </label>
+          </div>
+        </fieldset>
+        <label class="toggle">
+          <input id="includeDescription" type="checkbox" checked>
+          <span>包含本书信息页</span>
+        </label>
+        <label class="toggle">
+          <input id="respectDelay" type="checkbox" checked>
+          <span>抓取时轻微限速</span>
+        </label>
+        <button id="exportButton" type="button" disabled>导出 EPUB</button>
+      </section>
+
+      <section class="progress" id="progressPanel" hidden>
+        <div class="progressText">
+          <span id="progressLabel">准备中</span>
+          <span id="progressCount"></span>
+        </div>
+        <progress id="progressBar" max="100" value="0"></progress>
+      </section>
+
+      <p class="message" id="message"></p>
+    </main>
+
+    <script src="epub.js"></script>
+    <script src="popup.js"></script>
+  </body>
+</html>

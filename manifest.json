@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "Kakuyomu Kindle Exporter",
+  "description": "Export public Kakuyomu works as EPUB files for Kindle reading.",
+  "version": "0.1.0",
+  "action": {
+    "default_title": "Kakuyomu Kindle Exporter",
+    "default_popup": "popup.html"
+  },
+  "permissions": [
+    "activeTab",
+    "downloads"
+  ],
+  "host_permissions": [
+    "https://kakuyomu.jp/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://kakuyomu.jp/works/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}
