@@ -27,13 +27,26 @@
     }
   }
 
-  function getWorkFromCurrentPage() {
+  async function getWorkFromCurrentPage() {
     const workId = getWorkId(location.href);
     if (!workId) {
       throw new Error("当前页面不是カクヨム作品页。");
     }
 
-    const parsed = parseKakuyomuDocument(document, location.href);
+    let parsed = parseKakuyomuDocument(document, location.href);
+    if (!parsed.episodes.length && getEpisodeId(location.href)) {
+      const response = await fetch(`${KAKUYOMU_ORIGIN}/works/${workId}`, {
+        credentials: "include",
+        cache: "no-cache"
+      });
+      if (!response.ok) {
+        throw new Error(`作品目录请求失败：HTTP ${response.status}`);
+      }
+      const html = await response.text();
+      const doc = new DOMParser().parseFromString(html, "text/html");
+      parsed = parseKakuyomuDocument(doc, `${KAKUYOMU_ORIGIN}/works/${workId}`);
+    }
+
     if (!parsed.work || parsed.work.id !== workId) {
       parsed.work = parsed.work || {};
       parsed.work.id = workId;
@@ -164,6 +177,8 @@
       .map(({ entry, episode }, index) => ({
         id: String(episode.id),
         title: formatEpisodeTitle(episode.title, entry.chapterTitles, index),
+        rawTitle: formatRawEpisodeTitle(episode.title, index),
+        chapterTitles: [...new Set((entry.chapterTitles || []).map(cleanText).filter(Boolean))],
         url: `${KAKUYOMU_ORIGIN}/works/${workId}/episodes/${episode.id}`,
         publishedAt: episode.publishedAt || episode.createdAt || ""
       }));
@@ -252,10 +267,46 @@
   }
 
   function formatEpisodeTitle(episodeTitle, chapterTitles, index) {
-    const title = firstText(episodeTitle, `第${index + 1}話`);
-    const prefix = [...new Set((chapterTitles || []).map(cleanText).filter(Boolean))].join(" - ");
-    if (!prefix || title === prefix || title.startsWith(prefix)) return title;
-    return `${prefix} - ${title}`;
+    return titleParts([
+      ...(chapterTitles || []),
+      episodeNumberTitle(index),
+      firstText(episodeTitle, "")
+    ]).join(" - ");
+  }
+
+  function formatRawEpisodeTitle(episodeTitle, index) {
+    return titleParts([episodeNumberTitle(index), firstText(episodeTitle, "")]).join(" - ");
+  }
+
+  function episodeNumberTitle(index) {
+    return `第${index + 1}話`;
+  }
+
+  function titleParts(parts) {
+    const result = [];
+    for (const part of parts.map(cleanText).filter(Boolean)) {
+      const comparable = comparableTitle(part);
+      if (!comparable) continue;
+
+      let covered = false;
+      for (let i = result.length - 1; i >= 0; i -= 1) {
+        const existingComparable = comparableTitle(result[i]);
+        if (existingComparable === comparable || existingComparable.includes(comparable)) {
+          covered = true;
+          break;
+        }
+        if (comparable.includes(existingComparable)) {
+          result.splice(i, 1);
+        }
+      }
+
+      if (!covered) result.push(part);
+    }
+    return result;
+  }
+
+  function comparableTitle(value) {
+    return cleanText(value).replace(/[\s\u3000\-‐‑‒–—―:：・、。，.．]+/g, "");
   }
 
   function parseCurrentEpisode(state, episodeId, doc, url) {
@@ -290,8 +341,13 @@
       doc.querySelector("article");
     if (!root) return [];
 
-    const paragraphs = [...root.querySelectorAll("p")]
-      .map((p) => cleanInlineHtml(p));
+    const blocks = [...root.childNodes]
+      .map(sanitizeBlockNode)
+      .flat()
+      .filter((line) => line !== null);
+    if (blocks.length) return blocks;
+
+    const paragraphs = [...root.querySelectorAll("p")].map((p) => cleanInlineHtml(p));
 
     return paragraphs.length ? paragraphs : normalizeBody(root.textContent || "");
   }
@@ -304,8 +360,7 @@
     if (typeof body !== "string") return [];
 
     const doc = new DOMParser().parseFromString(body, "text/html");
-    const paragraphs = [...doc.querySelectorAll("p")]
-      .map((p) => cleanInlineHtml(p));
+    const paragraphs = [...doc.querySelectorAll("p")].map((p) => cleanInlineHtml(p));
 
     if (paragraphs.length) return paragraphs;
 
@@ -352,14 +407,39 @@
 
   function cleanBodyFragment(value) {
     const text = String(value || "");
-    if (!hasInlineMarkup(text)) return cleanText(text);
+    if (!hasMarkup(text)) return cleanText(text);
 
     const doc = new DOMParser().parseFromString(`<span>${text}</span>`, "text/html");
     return cleanInlineHtml(doc.body.firstElementChild);
   }
 
   function hasInlineMarkup(value) {
-    return /<(?:ruby|rb|rt|rtc|br)\b/i.test(String(value || ""));
+    return /<(?:ruby|rb|rt|rtc|br|em|strong|b|i|span)\b/i.test(String(value || ""));
+  }
+
+  function hasMarkup(value) {
+    return /<[a-z][\s\S]*>/i.test(String(value || ""));
+  }
+
+  function sanitizeBlockNode(node) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const lines = normalizeBody(node.textContent || "").filter(Boolean);
+      return lines.length ? lines : [];
+    }
+
+    if (node.nodeType !== Node.ELEMENT_NODE) {
+      return null;
+    }
+
+    const tag = node.tagName.toLowerCase();
+    if (tag === "p") return cleanInlineHtml(node);
+    if (tag === "br") return "";
+    if (tag === "hr") return "<hr/>";
+    if (["h2", "h3"].includes(tag)) {
+      return `<${tag}>${cleanInlineHtml(node)}</${tag}>`;
+    }
+
+    return [...node.childNodes].map(sanitizeBlockNode).flat();
   }
 
   function sanitizeInlineNode(node) {
@@ -376,6 +456,10 @@
 
     if (tag === "ruby") {
       return `<ruby>${[...node.childNodes].map(sanitizeRubyNode).join("")}</ruby>`;
+    }
+
+    if (["em", "strong", "b", "i"].includes(tag)) {
+      return `<${tag}>${[...node.childNodes].map(sanitizeInlineNode).join("")}</${tag}>`;
     }
 
     return [...node.childNodes].map(sanitizeInlineNode).join("");
@@ -424,5 +508,11 @@
 
   function getEpisodeId(url) {
     return new URL(url).pathname.match(/\/episodes\/(\d+)/)?.[1] || "";
+  }
+
+  if (typeof globalThis !== "undefined") {
+    globalThis.KakuyomuContentParser = {
+      parseKakuyomuDocument
+    };
   }
 })();

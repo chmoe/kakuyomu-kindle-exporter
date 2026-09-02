@@ -26,28 +26,71 @@
       </section>
 
       <section class="controls">
-        <fieldset class="fieldGroup">
-          <legend>排版方式</legend>
-          <div class="segmented">
-            <label>
-              <input type="radio" name="writingMode" value="horizontal" checked>
-              <span>横向</span>
-            </label>
-            <label>
-              <input type="radio" name="writingMode" value="vertical">
-              <span>竖向</span>
+        <div class="buttonRow">
+          <button id="exportButton" type="button" disabled>导出 EPUB</button>
+          <button id="cancelButton" class="secondaryButton" type="button" hidden>取消</button>
+        </div>
+        <div class="quickExportRow">
+          <button id="exportCurrentButton" class="secondaryButton" type="button" hidden>仅当前章</button>
+          <button id="exportFromCurrentButton" class="secondaryButton" type="button" hidden>从当前章开始</button>
+        </div>
+
+        <details class="controlGroup" open>
+          <summary>排版选项</summary>
+          <fieldset class="fieldGroup">
+            <legend>排版方式</legend>
+            <div class="segmented">
+              <label>
+                <input type="radio" name="writingMode" value="horizontal" checked>
+                <span>横向</span>
+              </label>
+              <label>
+                <input type="radio" name="writingMode" value="vertical">
+                <span>竖向</span>
+              </label>
+            </div>
+          </fieldset>
+          <label class="toggle">
+            <input id="includeDescription" type="checkbox" checked>
+            <span>包含本书信息页</span>
+          </label>
+          <label class="toggle">
+            <input id="respectDelay" type="checkbox" checked>
+            <span>抓取时轻微限速</span>
+          </label>
+          <label class="toggle">
+            <input id="compatibleMode" type="checkbox">
+            <span>Kindle 兼容模式</span>
+          </label>
+          <fieldset class="fieldGroup">
+            <legend>文件名</legend>
+            <select id="fileNameTemplate" class="selectInput">
+              <option value="title">作品名</option>
+              <option value="title-author">作品名 - 作者</option>
+              <option value="title-range">作品名 + 范围</option>
+              <option value="title-author-range">作品名 - 作者 + 范围</option>
+            </select>
+          </fieldset>
+        </details>
+
+        <details class="controlGroup">
+          <summary>断点续传</summary>
+          <div class="resumeBox">
+            <input id="resumeFile" type="file" accept=".json,.gz,.kakuyomu-export.json,application/json,application/gzip" hidden>
+            <button id="importButton" class="secondaryButton" type="button">导入中间文件</button>
+            <button id="saveProgressButton" class="secondaryButton" type="button" disabled>保存进度文件</button>
+            <button id="clearCacheButton" class="secondaryButton dangerButton" type="button" disabled>清除缓存</button>
+            <label class="toggle">
+              <input id="compressProgress" type="checkbox" checked>
+              <span>压缩中间文件</span>
             </label>
           </div>
-        </fieldset>
-        <label class="toggle">
-          <input id="includeDescription" type="checkbox" checked>
-          <span>包含本书信息页</span>
-        </label>
-        <label class="toggle">
-          <input id="respectDelay" type="checkbox" checked>
-          <span>抓取时轻微限速</span>
-        </label>
-        <button id="exportButton" type="button" disabled>导出 EPUB</button>
+        </details>
+
+        <details class="controlGroup">
+          <summary>预览</summary>
+          <button id="previewButton" class="secondaryButton" type="button" disabled>打开预览</button>
+        </details>
       </section>
 
       <section class="progress" id="progressPanel" hidden>
@@ -56,6 +99,28 @@
           <span id="progressCount"></span>
         </div>
         <progress id="progressBar" max="100" value="0"></progress>
+      </section>
+
+      <section class="preview" id="previewPanel" hidden>
+        <div class="previewHeader">
+          <select id="previewSelect" class="previewSelect" aria-label="选择预览章节"></select>
+          <button id="closePreviewButton" class="iconButton" type="button" aria-label="关闭预览">×</button>
+        </div>
+        <div class="previewActions">
+          <button id="prevPreviewButton" class="secondaryButton compactButton" type="button">上一章</button>
+          <button id="nextPreviewButton" class="secondaryButton compactButton" type="button">下一章</button>
+          <label class="toggle compactToggle">
+            <input id="previewFull" type="checkbox">
+            <span>全文</span>
+          </label>
+        </div>
+        <strong id="previewTitle" class="previewTitle"></strong>
+        <div id="previewBody" class="previewBody"></div>
+      </section>
+
+      <section class="history" id="historyPanel" hidden>
+        <div class="sectionTitle">最近导出</div>
+        <div id="historyList" class="historyList"></div>
       </section>
 
       <p class="message" id="message"></p>

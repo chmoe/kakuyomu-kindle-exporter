@@ -51,6 +51,7 @@ h1 {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  contain: content;
 }
 
 .work h2 {
@@ -90,8 +91,33 @@ h1 {
 .controls {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   margin-top: auto;
+  contain: content;
+}
+
+.controlGroup {
+  border-top: 1px solid #d8ded4;
+  padding-top: 8px;
+}
+
+.controlGroup:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.controlGroup summary {
+  color: #2d3932;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  list-style-position: inside;
+}
+
+.controlGroup[open] {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
 }
 
 .fieldGroup {
@@ -166,6 +192,27 @@ h1 {
   accent-color: #24745b;
 }
 
+.resumeBox {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.buttonRow,
+.quickExportRow {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.buttonRow.isBusy {
+  grid-template-columns: 1fr 88px;
+}
+
+.quickExportRow {
+  grid-template-columns: 1fr 1fr;
+}
+
 button {
   width: 100%;
   min-height: 42px;
@@ -181,6 +228,20 @@ button {
 button:disabled {
   background: #a9b6af;
   cursor: not-allowed;
+}
+
+.secondaryButton {
+  border: 1px solid #cbd7d0;
+  background: #fff;
+  color: #2d3932;
+}
+
+.secondaryButton:hover {
+  background: #eef3ef;
+}
+
+.dangerButton {
+  color: #7d2e20;
 }
 
 .progress {
@@ -220,4 +281,141 @@ progress::-webkit-progress-value {
   color: #8a3e22;
   font-size: 12px;
   line-height: 1.45;
+}
+
+.preview {
+  display: flex;
+  max-height: 300px;
+  flex-direction: column;
+  gap: 8px;
+  border-top: 1px solid #d8ded4;
+  padding-top: 10px;
+  contain: content;
+}
+
+.previewHeader,
+.previewActions {
+  display: grid;
+  gap: 8px;
+  align-items: center;
+}
+
+.previewHeader {
+  grid-template-columns: 1fr 28px;
+}
+
+.previewActions {
+  grid-template-columns: 1fr 1fr auto;
+}
+
+.previewSelect {
+  min-width: 0;
+  height: 32px;
+  border: 1px solid #cbd7d0;
+  border-radius: 6px;
+  background: #fff;
+  color: #243028;
+  font-size: 12px;
+}
+
+.selectInput {
+  width: 100%;
+  min-height: 34px;
+  border: 1px solid #cbd7d0;
+  border-radius: 6px;
+  background: #fff;
+  color: #243028;
+  font-size: 13px;
+}
+
+.previewTitle {
+  display: block;
+  overflow: hidden;
+  color: #0f1b21;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.compactButton {
+  min-height: 32px;
+  font-size: 12px;
+}
+
+.compactToggle {
+  white-space: nowrap;
+}
+
+.iconButton {
+  width: 28px;
+  min-height: 28px;
+  border: 1px solid #cbd7d0;
+  border-radius: 6px;
+  background: #fff;
+  color: #344139;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.previewBody {
+  overflow: auto;
+  max-height: 180px;
+  border: 1px solid #d8ded4;
+  border-radius: 7px;
+  padding: 10px;
+  background: #fff;
+  color: #243028;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.previewBody p,
+.previewBody h2,
+.previewBody h3 {
+  margin: 0 0 0.75em;
+}
+
+.previewBody h2,
+.previewBody h3 {
+  font-size: 14px;
+}
+
+.history {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-top: 1px solid #d8ded4;
+  padding-top: 10px;
+  contain: content;
+}
+
+.sectionTitle {
+  color: #2d3932;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.historyList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.historyItem {
+  display: grid;
+  gap: 2px;
+  color: #344139;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.historyItem strong {
+  overflow: hidden;
+  color: #172026;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.historyItem span {
+  color: #657168;
 }

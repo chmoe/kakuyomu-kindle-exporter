@@ -1,17 +1,22 @@
 (function () {
   const encoder = new TextEncoder();
-  const PARAGRAPH_INDENT = "\u3000\u3000";
+  const PARAGRAPH_INDENT = "\u3000";
 
   window.KakuyomuEpub = {
-    buildEpub
+    buildEpub,
+    buildEpubAsync
   };
 
-  function buildEpub({ work, chapters, includeDescription, writingMode = "horizontal" }) {
+  const BUILD_CHUNK_SIZE = 12;
+
+  function buildEpub({ work, chapters, includeDescription, writingMode = "horizontal", compatibleMode = false }) {
+    const bookWritingMode = compatibleMode ? "horizontal" : writingMode;
     const now = new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
     const bookId = `urn:kakuyomu:${work.id || crypto.randomUUID()}`;
     const safeTitle = escapeXml(work.title || "Kakuyomu Work");
     const safeAuthor = escapeXml(work.author || "Unknown Author");
-    const coverSvg = buildCoverSvg(work, chapters.length);
+    const hasImageCover = !compatibleMode;
+    const coverSvg = hasImageCover ? buildCoverSvg(work, chapters.length) : "";
     const entries = [];
 
     entries.push(file("mimetype", "application/epub+zip"));
@@ -22,31 +27,31 @@
   </rootfiles>
 </container>`)));
 
-    entries.push(file("OEBPS/styles/book.css", css(writingMode)));
-    entries.push(file("OEBPS/images/cover.svg", coverSvg));
+    entries.push(file("OEBPS/styles/book.css", css(bookWritingMode, compatibleMode)));
+    if (hasImageCover) {
+      entries.push(file("OEBPS/images/cover.svg", coverSvg));
+    }
 
     const xhtmlFiles = [];
     const readingOrder = [{ id: "cover", href: "cover.xhtml", title: "表紙" }];
-    const cover = xhtml("cover", "表紙", [
-      `<section class="cover-page" epub:type="cover"><img class="cover-image" src="images/cover.svg" alt="${safeTitle}"/></section>`
-    ], writingMode);
+    const cover = xhtml("cover", "表紙", coverBody(work, chapters.length, safeTitle, bookWritingMode, hasImageCover), bookWritingMode);
     entries.push(file("OEBPS/cover.xhtml", cover));
     xhtmlFiles.push({ id: "cover", href: "cover.xhtml", title: "表紙" });
 
     if (includeDescription) {
       const intro = xhtml("intro", "本書について", [
         `<section class="book-info" epub:type="frontmatter">`,
-        `<h1>${formatText(work.title || "Kakuyomu Work", writingMode)}</h1>`,
-        `<p class="author">${formatText(work.author || "Unknown Author", writingMode)}</p>`,
-        `<h2>${formatText("作品紹介", writingMode)}</h2>`,
-        ...descriptionParagraphs(work.description, writingMode),
+        `<h1>${formatText(work.title || "Kakuyomu Work", bookWritingMode)}</h1>`,
+        `<p class="author">${formatText(work.author || "Unknown Author", bookWritingMode)}</p>`,
+        `<h2>${formatText("作品紹介", bookWritingMode)}</h2>`,
+        ...descriptionParagraphs(work.description, bookWritingMode),
         `<dl class="metadata">`,
-        `<dt>${formatText("収録話数", writingMode)}</dt><dd>${formatText(`${chapters.length}話`, writingMode)}</dd>`,
-        `<dt>${formatText("出典", writingMode)}</dt><dd>${formatText(work.sourceUrl || "", writingMode)}</dd>`,
-        `<dt>${formatText("生成日時", writingMode)}</dt><dd>${formatText(formatDate(now), writingMode)}</dd>`,
+        `<dt>${formatText("収録話数", bookWritingMode)}</dt><dd>${formatText(`${chapters.length}話`, bookWritingMode)}</dd>`,
+        `<dt>${formatText("出典", bookWritingMode)}</dt><dd>${formatText(work.sourceUrl || "", bookWritingMode)}</dd>`,
+        `<dt>${formatText("生成日時", bookWritingMode)}</dt><dd>${formatText(formatDate(now), bookWritingMode)}</dd>`,
         `</dl>`,
         `</section>`
-      ], writingMode);
+      ], bookWritingMode);
       entries.push(file("OEBPS/intro.xhtml", intro));
       xhtmlFiles.push({ id: "intro", href: "intro.xhtml", title: "本書について" });
       readingOrder.push({ id: "intro", href: "intro.xhtml", title: "本書について" });
@@ -58,27 +63,187 @@
       const id = `chapter-${index + 1}`;
       const href = `${id}.xhtml`;
       entries.push(file(`OEBPS/${href}`, xhtml(id, chapter.title, [
-        `<h1>${formatText(chapter.title, writingMode)}</h1>`,
-        ...chapter.body.map((line) => line ? paragraph(line, writingMode) : '<p class="blank"><br/></p>')
-      ], writingMode)));
-      xhtmlFiles.push({ id, href, title: chapter.title });
+        `<h1>${formatText(chapter.title, bookWritingMode)}</h1>`,
+        ...chapter.body.map((line) => renderBodyLine(line, bookWritingMode))
+      ], bookWritingMode)));
+      xhtmlFiles.push({
+        id,
+        href,
+        title: chapter.title,
+        rawTitle: chapter.rawTitle || chapter.title,
+        chapterTitles: Array.isArray(chapter.chapterTitles) ? chapter.chapterTitles : []
+      });
       readingOrder.push({ id, href, title: chapter.title });
     });
 
-    entries.push(file("OEBPS/nav.xhtml", navXhtml(work, xhtmlFiles, writingMode)));
-    entries.push(file("OEBPS/toc.ncx", ncx({ bookId, title: safeTitle, author: safeAuthor, files: xhtmlFiles })));
+    entries.push(file("OEBPS/nav.xhtml", navXhtml(work, xhtmlFiles, bookWritingMode)));
+    entries.push(file("OEBPS/toc.ncx", ncx({
+      bookId,
+      title: work.title || "Kakuyomu Work",
+      author: work.author || "Unknown Author",
+      files: xhtmlFiles
+    })));
     entries.push(file("OEBPS/content.opf", opf({
       bookId,
       title: safeTitle,
       author: safeAuthor,
+      sourceUrl: work.sourceUrl || "",
       modified: now,
       files: xhtmlFiles,
       readingOrder,
-      writingMode,
-      hasCover: true
+      writingMode: bookWritingMode,
+      hasCover: hasImageCover
     })));
 
     return makeZip(entries);
+  }
+
+  async function buildEpubAsync(options, hooks = {}) {
+    const buildOptions = normalizeBuildOptions(options);
+    const { work, chapters, includeDescription, bookWritingMode, hasImageCover, coverSvg, now, bookId, safeTitle, safeAuthor } = buildOptions;
+    const entries = [];
+
+    entries.push(file("mimetype", "application/epub+zip"));
+    entries.push(file("META-INF/container.xml", xml(`<?xml version="1.0" encoding="UTF-8"?>
+<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <rootfiles>
+    <rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>`)));
+
+    entries.push(file("OEBPS/styles/book.css", css(bookWritingMode, options.compatibleMode)));
+    if (hasImageCover) {
+      entries.push(file("OEBPS/images/cover.svg", coverSvg));
+    }
+
+    const xhtmlFiles = [];
+    const readingOrder = [{ id: "cover", href: "cover.xhtml", title: "表紙" }];
+    entries.push(file("OEBPS/cover.xhtml", xhtml(
+      "cover",
+      "表紙",
+      coverBody(work, chapters.length, safeTitle, bookWritingMode, hasImageCover),
+      bookWritingMode
+    )));
+    xhtmlFiles.push({ id: "cover", href: "cover.xhtml", title: "表紙" });
+
+    if (includeDescription) {
+      entries.push(file("OEBPS/intro.xhtml", introXhtml(work, chapters.length, now, bookWritingMode)));
+      xhtmlFiles.push({ id: "intro", href: "intro.xhtml", title: "本書について" });
+      readingOrder.push({ id: "intro", href: "intro.xhtml", title: "本書について" });
+    }
+
+    readingOrder.push({ id: "nav", href: "nav.xhtml", title: "目次" });
+    await yieldToUi();
+
+    for (let index = 0; index < chapters.length; index++) {
+      const chapter = chapters[index];
+      const id = `chapter-${index + 1}`;
+      const href = `${id}.xhtml`;
+      entries.push(file(`OEBPS/${href}`, chapterXhtml(id, chapter, bookWritingMode)));
+      xhtmlFiles.push({
+        id,
+        href,
+        title: chapter.title,
+        rawTitle: chapter.rawTitle || chapter.title,
+        chapterTitles: Array.isArray(chapter.chapterTitles) ? chapter.chapterTitles : []
+      });
+      readingOrder.push({ id, href, title: chapter.title });
+
+      if ((index + 1) % BUILD_CHUNK_SIZE === 0) {
+        hooks.onProgress?.({
+          phase: "chapters",
+          done: index + 1,
+          total: chapters.length,
+          title: chapter.title
+        });
+        await yieldToUi();
+      }
+    }
+
+    hooks.onProgress?.({ phase: "package", done: chapters.length, total: chapters.length, title: "" });
+    await yieldToUi();
+
+    entries.push(file("OEBPS/nav.xhtml", navXhtml(work, xhtmlFiles, bookWritingMode)));
+    entries.push(file("OEBPS/toc.ncx", ncx({
+      bookId,
+      title: work.title || "Kakuyomu Work",
+      author: work.author || "Unknown Author",
+      files: xhtmlFiles
+    })));
+    entries.push(file("OEBPS/content.opf", opf({
+      bookId,
+      title: safeTitle,
+      author: safeAuthor,
+      sourceUrl: work.sourceUrl || "",
+      modified: now,
+      files: xhtmlFiles,
+      readingOrder,
+      writingMode: bookWritingMode,
+      hasCover: hasImageCover
+    })));
+
+    await yieldToUi();
+    return makeZip(entries);
+  }
+
+  function normalizeBuildOptions({ work, chapters, includeDescription, writingMode = "horizontal", compatibleMode = false }) {
+    const bookWritingMode = compatibleMode ? "horizontal" : writingMode;
+    const now = new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
+    const bookId = `urn:kakuyomu:${work.id || crypto.randomUUID()}`;
+    const safeTitle = escapeXml(work.title || "Kakuyomu Work");
+    const safeAuthor = escapeXml(work.author || "Unknown Author");
+    const hasImageCover = !compatibleMode;
+    return {
+      work,
+      chapters,
+      includeDescription,
+      bookWritingMode,
+      hasImageCover,
+      coverSvg: hasImageCover ? buildCoverSvg(work, chapters.length) : "",
+      now,
+      bookId,
+      safeTitle,
+      safeAuthor
+    };
+  }
+
+  function introXhtml(work, chapterCount, now, writingMode) {
+    return xhtml("intro", "本書について", [
+      `<section class="book-info" epub:type="frontmatter">`,
+      `<h1>${formatText(work.title || "Kakuyomu Work", writingMode)}</h1>`,
+      `<p class="author">${formatText(work.author || "Unknown Author", writingMode)}</p>`,
+      `<h2>${formatText("作品紹介", writingMode)}</h2>`,
+      ...descriptionParagraphs(work.description, writingMode),
+      `<dl class="metadata">`,
+      `<dt>${formatText("収録話数", writingMode)}</dt><dd>${formatText(`${chapterCount}話`, writingMode)}</dd>`,
+      `<dt>${formatText("出典", writingMode)}</dt><dd>${formatText(work.sourceUrl || "", writingMode)}</dd>`,
+      `<dt>${formatText("生成日時", writingMode)}</dt><dd>${formatText(formatDate(now), writingMode)}</dd>`,
+      `</dl>`,
+      `</section>`
+    ], writingMode);
+  }
+
+  function chapterXhtml(id, chapter, writingMode) {
+    return xhtml(id, chapter.title, [
+      `<h1>${formatText(chapter.title, writingMode)}</h1>`,
+      ...chapter.body.map((line) => renderBodyLine(line, writingMode))
+    ], writingMode);
+  }
+
+  function coverBody(work, chapterCount, safeTitle, writingMode, hasImageCover) {
+    if (hasImageCover) {
+      return [
+        `<section class="cover-page" epub:type="cover"><img class="cover-image" src="images/cover.svg" alt="${safeTitle}"/></section>`
+      ];
+    }
+
+    return [
+      `<section class="cover-page text-cover" epub:type="cover">`,
+      `<h1>${formatText(work.title || "Kakuyomu Work", writingMode)}</h1>`,
+      `<p class="author">${formatText(work.author || "Unknown Author", writingMode)}</p>`,
+      `<p class="source">${formatText(`${chapterCount} episodes`, writingMode)}</p>`,
+      `</section>`
+    ];
   }
 
   function xhtml(id, title, body, writingMode) {
@@ -98,15 +263,14 @@
   }
 
   function navXhtml(work, files, writingMode) {
+    const tree = buildNavTree(files);
     return xhtml("toc", "目次", [
       `<h1>${formatText(work.title || "目次", writingMode)}</h1>`,
-      `<nav epub:type="toc" id="toc-nav"><ol>${files
-        .map((item) => `<li><a href="${item.href}">${formatText(item.title, writingMode)}</a></li>`)
-        .join("")}</ol></nav>`
+      `<nav epub:type="toc" id="toc-nav">${navList(tree, writingMode)}</nav>`
     ], writingMode);
   }
 
-  function opf({ bookId, title, author, modified, files, readingOrder, writingMode, hasCover }) {
+  function opf({ bookId, title, author, sourceUrl, modified, files, readingOrder, writingMode, hasCover }) {
     const manifestItems = files
       .map((item) => `<item id="${item.id}" href="${item.href}" media-type="application/xhtml+xml"/>`)
       .join("\n    ");
@@ -121,6 +285,7 @@
     <dc:title>${title}</dc:title>
     <dc:creator>${author}</dc:creator>
     <dc:language>ja</dc:language>
+    ${sourceUrl ? `<dc:source>${escapeXml(sourceUrl)}</dc:source>` : ""}
     ${hasCover ? `<meta name="cover" content="cover-image"/>` : ""}
     <meta property="dcterms:modified">${modified}</meta>
     ${writingMode === "vertical" ? `<meta property="rendition:layout">reflowable</meta>
@@ -142,31 +307,30 @@
   }
 
   function ncx({ bookId, title, author, files }) {
-    const navPoints = files
-      .map((item, index) => `<navPoint id="navPoint-${index + 1}" playOrder="${index + 1}">
-      <navLabel><text>${escapeXml(item.title)}</text></navLabel>
-      <content src="${item.href}"/>
-    </navPoint>`)
-      .join("\n    ");
+    let playOrder = 0;
+    const navPoints = ncxNavPoints(buildNavTree(files), () => {
+      playOrder += 1;
+      return playOrder;
+    });
 
     return xml(`<?xml version="1.0" encoding="UTF-8"?>
 <ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1" xml:lang="ja">
   <head>
     <meta name="dtb:uid" content="${escapeXml(bookId)}"/>
-    <meta name="dtb:depth" content="1"/>
+    <meta name="dtb:depth" content="${navDepth(buildNavTree(files))}"/>
     <meta name="dtb:totalPageCount" content="0"/>
     <meta name="dtb:maxPageNumber" content="0"/>
   </head>
-  <docTitle><text>${title}</text></docTitle>
-  <docAuthor><text>${author}</text></docAuthor>
+  <docTitle><text>${escapeXml(title)}</text></docTitle>
+  <docAuthor><text>${escapeXml(author)}</text></docAuthor>
   <navMap>
     ${navPoints}
   </navMap>
 </ncx>`);
   }
 
-  function css(writingMode) {
-    const vertical = writingMode === "vertical";
+  function css(writingMode, compatibleMode) {
+    const vertical = writingMode === "vertical" && !compatibleMode;
     return `html,
 body {
   width: 100%;
@@ -211,6 +375,29 @@ p {
   widows: 1;
   orphans: 1;
 }
+em {
+  font-style: normal;
+  -webkit-text-emphasis: filled sesame;
+  text-emphasis: filled sesame;
+}
+strong,
+b {
+  font-weight: 700;
+}
+i {
+  font-style: italic;
+}
+h2,
+h3 {
+  font-size: ${vertical ? "1.1em" : "1.05em"};
+  line-height: 1.5;
+  margin: ${vertical ? "0 0 0 1.8em" : "1.4em 0 0.75em"};
+}
+hr {
+  border: 0;
+  border-${vertical ? "left" : "top"}: 1px solid #999;
+  margin: ${vertical ? "0 0 0 1.5em" : "1.5em 0"};
+}
 ruby {
   ruby-align: center;
   ruby-position: over;
@@ -238,10 +425,12 @@ rt {
 nav ol {
   margin: ${vertical ? "0 0 0 1em" : "0"};
   padding: 0;
+  list-style-type: none;
   list-style-position: inside;
 }
 nav li {
   margin: ${vertical ? "0 0 0 0.9em" : "0 0 0.55em"};
+  list-style-type: none;
 }
 nav a {
   color: inherit;
@@ -259,6 +448,13 @@ body#cover {
   page-break-after: always;
   break-after: page;
   text-align: center;
+}
+.text-cover {
+  display: block;
+  padding: ${vertical ? "2em 1.5em" : "4em 2em"};
+  background: #fff;
+  color: #1c1f21;
+  text-align: start;
 }
 .cover-image {
   display: block;
@@ -298,6 +494,62 @@ body#cover {
 
   function paragraph(text, writingMode) {
     return `<p>${formatText(`${PARAGRAPH_INDENT}${String(text || "").trimStart()}`, writingMode)}</p>`;
+  }
+
+  function renderBodyLine(line, writingMode) {
+    const text = String(line || "");
+    if (!text) return '<p class="blank"><br/></p>';
+    if (text === "<hr/>") return "<hr/>";
+
+    const heading = text.match(/^<(h[23])>([\s\S]*)<\/\1>$/i);
+    if (heading) {
+      return `<${heading[1].toLowerCase()}>${formatText(heading[2], writingMode)}</${heading[1].toLowerCase()}>`;
+    }
+
+    return paragraph(text, writingMode);
+  }
+
+  function buildNavTree(files) {
+    return files.map((file) => ({
+      title: file.title,
+      href: file.href,
+      children: []
+    }));
+  }
+
+  function navList(items, writingMode) {
+    return `<ol>${items.map((item) => {
+      const label = item.href
+        ? `<a href="${item.href}">${formatText(item.title, writingMode)}</a>`
+        : `<span>${formatText(item.title, writingMode)}</span>`;
+      return `<li>${label}${item.children.length ? navList(item.children, writingMode) : ""}</li>`;
+    }).join("")}</ol>`;
+  }
+
+  function ncxNavPoints(items, nextPlayOrder) {
+    return items.map((item) => {
+      const order = nextPlayOrder();
+      const href = item.href || firstLeafHref(item);
+      const children = item.children.length ? `\n      ${ncxNavPoints(item.children, nextPlayOrder)}` : "";
+      return `<navPoint id="navPoint-${order}" playOrder="${order}">
+      <navLabel><text>${escapeXml(item.title)}</text></navLabel>
+      <content src="${escapeXml(href)}"/>${children}
+    </navPoint>`;
+    }).join("\n    ");
+  }
+
+  function navDepth(items) {
+    if (!items.length) return 0;
+    return Math.max(...items.map((item) => 1 + navDepth(item.children)));
+  }
+
+  function firstLeafHref(item) {
+    if (item.href) return item.href;
+    for (const child of item.children) {
+      const href = firstLeafHref(child);
+      if (href) return href;
+    }
+    return "";
   }
 
   function buildCoverSvg(work, chapterCount) {
@@ -396,7 +648,7 @@ body#cover {
   }
 
   function hasInlineMarkup(value) {
-    return /<(?:ruby|rb|rt|rtc|br)\b/i.test(String(value || ""));
+    return /<(?:ruby|rb|rt|rtc|br|em|strong|b|i|span)\b/i.test(String(value || ""));
   }
 
   function formatInlineHtml(value, writingMode) {
@@ -418,7 +670,7 @@ body#cover {
 
     const tag = node.tagName.toLowerCase();
     if (tag === "br") return "<br/>";
-    if (!["ruby", "rb", "rt", "rtc"].includes(tag)) {
+    if (!["ruby", "rb", "rt", "rtc", "em", "strong", "b", "i"].includes(tag)) {
       return [...node.childNodes].map((child) => formatInlineNode(child, writingMode)).join("");
     }
 
@@ -465,6 +717,18 @@ body#cover {
 
   function file(name, content) {
     return { name, content };
+  }
+
+  function yieldToUi() {
+    return new Promise((resolve) => {
+      if (typeof requestAnimationFrame === "function") {
+        requestAnimationFrame(() => resolve());
+      } else if (typeof setTimeout === "function") {
+        setTimeout(resolve, 0);
+      } else {
+        resolve();
+      }
+    });
   }
 
   function xml(text) {
