@@ -26,6 +26,13 @@
   const CACHE_CHAPTER_PREFIX = "kakuyomu-export:chapter:";
   const HISTORY_KEY = "kakuyomu-export:history";
   const HISTORY_LIMIT = 5;
+  const EXPORT_STEPS = [
+    { key: "prepare", label: "准备" },
+    { key: "fetch", label: "抓取" },
+    { key: "build", label: "生成" },
+    { key: "download", label: "下载" },
+    { key: "complete", label: "完成" }
+  ];
 
   const els = {
     pageStatus: document.getElementById("pageStatus"),
@@ -53,6 +60,7 @@
     progressLabel: document.getElementById("progressLabel"),
     progressCount: document.getElementById("progressCount"),
     progressBar: document.getElementById("progressBar"),
+    progressSteps: document.getElementById("progressSteps"),
     previewPanel: document.getElementById("previewPanel"),
     previewSelect: document.getElementById("previewSelect"),
     prevPreviewButton: document.getElementById("prevPreviewButton"),
@@ -128,12 +136,15 @@
     els.cancelButton.disabled = false;
     els.exportButton.closest(".buttonRow")?.classList.add("isBusy");
     els.progressPanel.hidden = false;
+    renderProgressSteps();
     setError("");
 
     const selectedEpisodes = selectedEpisodesForMode(mode);
+    setExportProgress("prepare", 0, "准备导出", 0, selectedEpisodes.length, "");
     const chapters = [];
     const cache = state.cache || await loadChapterCache();
     applyCurrentOptionsToCache(cache);
+    setExportProgress("prepare", 8, "保存导出设置", 0, selectedEpisodes.length, "");
     await saveChapterCache(cache);
 
     try {
@@ -141,7 +152,7 @@
         assertNotCancelled();
         const episode = selectedEpisodes[i];
         const cached = cache.chapters[episode.id];
-        setProgress(cached ? "读取缓存" : "抓取章节", i, selectedEpisodes.length, episode.title);
+        setChapterProgress(cached ? "读取缓存" : "抓取章节", i, selectedEpisodes.length, episode.title);
 
         const chapter = cached || await fetchEpisodeWithRetry(episode, state.episodes.indexOf(episode), cache);
         chapters.push({
@@ -153,11 +164,11 @@
         if (els.respectDelay.checked) {
           await sleep(350);
         }
-        setProgress("已完成章节", i + 1, selectedEpisodes.length, episode.title);
+        setChapterProgress("已完成章节", i + 1, selectedEpisodes.length, episode.title);
       }
 
       assertNotCancelled();
-      setProgress("生成 EPUB", selectedEpisodes.length, selectedEpisodes.length, "");
+      setExportProgress("build", 70, "生成 EPUB", selectedEpisodes.length, selectedEpisodes.length, "");
       const blob = await buildEpubBlob({
         work: state.work,
         chapters,
@@ -166,6 +177,7 @@
         compatibleMode: els.compatibleMode.checked
       });
 
+      setExportProgress("download", 95, "准备下载", selectedEpisodes.length, selectedEpisodes.length, "");
       const url = URL.createObjectURL(blob);
       const exportFileName = `${buildExportFileName(mode, selectedEpisodes)}.epub`;
       await chrome.downloads.download({
@@ -175,7 +187,7 @@
       });
 
       setStatus("导出完成。EPUB 可直接发送到 Kindle，或用 Calibre 转换。");
-      setProgress("完成", selectedEpisodes.length, selectedEpisodes.length, "");
+      setExportProgress("complete", 100, "完成", selectedEpisodes.length, selectedEpisodes.length, "");
       await recordExportHistory({
         mode,
         selectedEpisodes,
@@ -225,9 +237,10 @@
     return window.KakuyomuEpub.buildEpubAsync(options, {
       onProgress({ phase, done, total, title }) {
         if (phase === "chapters") {
-          setProgress("生成 EPUB 内容", done, total, title);
+          const percent = 70 + (total ? Math.round((done / total) * 20) : 0);
+          setExportProgress("build", percent, "生成 EPUB 内容", done, total, title);
         } else {
-          setProgress("打包 EPUB", total, total, "");
+          setExportProgress("build", 92, "打包 EPUB", total, total, "");
         }
       }
     });
@@ -433,9 +446,39 @@
 
   function setProgress(label, done, total, title) {
     const percent = total ? Math.round((done / total) * 100) : 0;
+    setExportProgress("", percent, label, done, total, title);
+  }
+
+  function setChapterProgress(label, done, total, title) {
+    const fetchPercent = total ? Math.round((done / total) * 60) : 0;
+    setExportProgress("fetch", 10 + fetchPercent, label, done, total, title);
+  }
+
+  function setExportProgress(stepKey, percent, label, done, total, title) {
     els.progressLabel.textContent = title ? `${label}：${title}` : label;
     els.progressCount.textContent = `${done}/${total}`;
-    els.progressBar.value = percent;
+    els.progressBar.value = Math.max(0, Math.min(100, percent));
+    if (stepKey) updateProgressSteps(stepKey);
+  }
+
+  function renderProgressSteps() {
+    if (!els.progressSteps) return;
+    els.progressSteps.replaceChildren(...EXPORT_STEPS.map((step) => {
+      const item = document.createElement("li");
+      item.dataset.step = step.key;
+      item.textContent = step.label;
+      return item;
+    }));
+  }
+
+  function updateProgressSteps(activeKey) {
+    if (!els.progressSteps) return;
+    const activeIndex = EXPORT_STEPS.findIndex((step) => step.key === activeKey);
+    for (const item of els.progressSteps.children) {
+      const stepIndex = EXPORT_STEPS.findIndex((step) => step.key === item.dataset.step);
+      item.classList.toggle("isDone", activeIndex >= 0 && stepIndex < activeIndex);
+      item.classList.toggle("isActive", stepIndex === activeIndex);
+    }
   }
 
   function sendToTab(message) {

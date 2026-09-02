@@ -25,6 +25,15 @@
         </div>
       </section>
 
+      <section class="progress" id="progressPanel" hidden>
+        <div class="progressText">
+          <span id="progressLabel">准备中</span>
+          <span id="progressCount"></span>
+        </div>
+        <progress id="progressBar" max="100" value="0"></progress>
+        <ol id="progressSteps" class="progressSteps" aria-label="导出步骤"></ol>
+      </section>
+
       <section class="controls">
         <div class="buttonRow">
           <button id="exportButton" type="button" disabled>导出 EPUB</button>
@@ -91,14 +100,6 @@
           <summary>预览</summary>
           <button id="previewButton" class="secondaryButton" type="button" disabled>打开预览</button>
         </details>
-      </section>
-
-      <section class="progress" id="progressPanel" hidden>
-        <div class="progressText">
-          <span id="progressLabel">准备中</span>
-          <span id="progressCount"></span>
-        </div>
-        <progress id="progressBar" max="100" value="0"></progress>
       </section>
 
       <section class="preview" id="previewPanel" hidden>

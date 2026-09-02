@@ -276,6 +276,39 @@ progress::-webkit-progress-value {
   background: #24745b;
 }
 
+.progressSteps {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.progressSteps li {
+  overflow: hidden;
+  border-radius: 5px;
+  padding: 4px 2px;
+  background: #e7ece8;
+  color: #657168;
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.2;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.progressSteps li.isActive {
+  background: #24745b;
+  color: #fff;
+}
+
+.progressSteps li.isDone {
+  background: #b9d4c9;
+  color: #1f4f42;
+}
+
 .message {
   min-height: 18px;
   color: #8a3e22;
